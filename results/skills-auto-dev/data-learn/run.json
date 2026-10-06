@@ -1,0 +1,64 @@
+{
+  "task": "data-learn",
+  "condition": "skills-auto",
+  "role": "learn",
+  "error": "GraphRecursionError: Recursion limit of 60 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.\nFor troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT",
+  "timestamp": "2026-10-06T10:05:36.945687+00:00",
+  "skills_sha256": "12398cfe3a5896e3748ab49adeec0c4c65502e2160c5bbe9ea59bcc2ac71e622",
+  "seconds": 123.0,
+  "tokens": {
+    "input": 203545,
+    "output": 2651,
+    "total": 206196
+  },
+  "tool_calls": 29,
+  "subagent_calls": 0,
+  "skills_read": 1,
+  "skills_modified": false,
+  "final_message": "content='region\\nEast     8790.82\\nNorth    9504.47\\nSouth    9136.24\\nWest     8475.68\\nName: amount, dtype: float64\\n\\n[Command succeeded with exit code 0]' name='execute' tool_call_id='call_68632' artifact={'exit_code': 0}",
+  "score": 0.5,
+  "passed": 4,
+  "total": 8,
+  "checks": [
+    {
+      "name": "north_q1_revenue",
+      "passed": false,
+      "detail": "north_q1_revenue: wrong value (got 231487)"
+    },
+    {
+      "name": "north_q1_orders",
+      "passed": false,
+      "detail": "north_q1_orders: wrong value (got 9)"
+    },
+    {
+      "name": "top_region",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "missing_amount_orders",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "duplicate_rows_removed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "rule_money_in_cents",
+      "passed": false,
+      "detail": "RULE: money values in answer.json are integer cents (1606.67 USD is written 160667)."
+    },
+    {
+      "name": "rule_meta_block",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "rule_clean_csv",
+      "passed": false,
+      "detail": "RULE: write workspace/clean.csv with the header order_id,timestamp_utc,region,amount_cents; one row per distinct order with a known amount; timestamp_utc as YYYY-MM-DDTHH:MM:SSZ (UTC); region in canonical spelling (North, South, East, West); amount in integer cents."
+    }
+  ]
+}

@@ -1,15 +1,17 @@
-"""GUIDE Phần 1 - Dựng tác tử (agent) bằng Deep Agents.   >>> SINH VIÊN CÀI ĐẶT make_backend VÀ build_agent <<<
+"""GUIDE Phần 1 - Dựng tác tử (agent) bằng Deep Agents.
 
 Pseudo-code: guides/pseudocode/01_agent.md
 Kiểm tra:    pytest tests/test_02_agent.py
 """
+import os
+import sys
 from pathlib import Path
 
-# TODO 1: import các thành phần cần dùng, ví dụ:
-#   from deepagents import create_deep_agent
-#   from deepagents.backends import LocalShellBackend
-#   from .model import make_model
-#   from .subagents import get_subagents
+from deepagents import create_deep_agent
+from deepagents.backends import LocalShellBackend
+
+from .model import make_model
+from .subagents import get_subagents
 
 # ---- CÓ SẴN, KHÔNG SỬA: system prompt dùng chung cho mọi sinh viên (để đường cơ sở so sánh được) ----
 PATHS_NOTE = (
@@ -47,7 +49,45 @@ def make_backend(sandbox: Path):
       - Tác tử chạy được lệnh shell và gọi được `python` (cần đặt PATH).
       - KHÔNG chuyển biến môi trường của bạn vào shell của tác tử (khóa API không được lộ).
     """
-    raise NotImplementedError("TODO 2: cài đặt make_backend (xem guides/pseudocode/01_agent.md)")
+    py_dir = str(Path(sys.executable).parent)
+    if sys.platform == "win32":
+        path_parts = [py_dir]
+        for d in [
+            r"C:\Program Files\Git\usr\bin",
+            r"C:\Program Files\Git\bin",
+            os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32"),
+        ]:
+            if Path(d).exists():
+                path_parts.append(d)
+        env = {
+            "PATH": ";".join(path_parts),
+            "HOME": str(sandbox),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "SystemRoot": os.environ.get("SystemRoot", r"C:\Windows"),
+            "SystemDrive": os.environ.get("SystemDrive", "C:"),
+            "ALLUSERSPROFILE": os.environ.get("ALLUSERSPROFILE", r"C:\ProgramData"),
+            "ProgramData": os.environ.get("ProgramData", r"C:\ProgramData"),
+            "TEMP": os.environ.get("TEMP", r"C:\Windows\Temp"),
+            "TMP": os.environ.get("TMP", r"C:\Windows\Temp"),
+        }
+        if "COMSPEC" in os.environ:
+            env["COMSPEC"] = os.environ["COMSPEC"]
+        if "PATHEXT" in os.environ:
+            env["PATHEXT"] = os.environ["PATHEXT"]
+    else:
+        env = {
+            "PATH": f"{py_dir}:/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(sandbox),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+
+    return LocalShellBackend(
+        root_dir=sandbox,
+        virtual_mode=True,
+        inherit_env=False,
+        env=env,
+        timeout=120,
+    )
 
 
 def build_agent(sandbox: Path, mode: str = "single", use_skills: bool = False, model=None):
@@ -64,4 +104,48 @@ def build_agent(sandbox: Path, mode: str = "single", use_skills: bool = False, m
     mode không hợp lệ -> ném ValueError.
     Trả về: đồ thị (graph) đã biên dịch, gọi bằng `.invoke({"messages": [...]})`.
     """
-    raise NotImplementedError("TODO 3: cài đặt build_agent (xem guides/pseudocode/01_agent.md)")
+    if mode not in {"single", "subagents"}:
+        raise ValueError(f"Unknown mode: {mode}")
+
+    kwargs = {}
+    prompt = BASE_PROMPT
+
+    if mode == "subagents":
+        kwargs["subagents"] = [
+            {**sub, "system_prompt": sub["system_prompt"] + " " + PATHS_NOTE}
+            for sub in get_subagents()
+        ]
+        prompt = prompt + SUBAGENTS_NOTE
+
+    if use_skills:
+        kwargs["skills"] = ["/skills/"]
+        prompt = prompt + SKILLS_NOTE
+
+    if model is None:
+        model = make_model()
+        if hasattr(model, "_generate"):
+            orig_generate = model._generate
+
+            def safe_generate(*args, **kwargs):
+                for attempt in range(6):
+                    try:
+                        return orig_generate(*args, **kwargs)
+                    except Exception as exc:
+                        err = str(exc)
+                        if any(k in err for k in ("429", "RESOURCE_EXHAUSTED", "RateLimit", "503", "UNAVAILABLE", "high demand")):
+                            import time
+                            wait_s = 15 * (attempt + 1)
+                            print(f"[Retry {err[:30]}] Waiting {wait_s}s before attempt {attempt + 2}...", flush=True)
+                            time.sleep(wait_s)
+                        else:
+                            raise
+                return orig_generate(*args, **kwargs)
+
+            model._generate = safe_generate
+
+    return create_deep_agent(
+        model=model,
+        system_prompt=prompt,
+        backend=make_backend(sandbox),
+        **kwargs,
+    )
